@@ -51,9 +51,10 @@ st.markdown("""
 # Başlıq
 st.markdown("""
 <div class="main-header">
-    <h1>💰 Maliyyə</h1>
+    <h1>💰 Maliyyə Sistemi</h1>
 </div>
 """, unsafe_allow_html=True)
+
 
 # Rayonların siyahısı
 REGIONS = [
