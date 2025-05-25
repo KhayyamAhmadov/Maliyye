@@ -351,45 +351,53 @@ with tab3:
         st.subheader("📤 Excel Faylını İxrac Et")
         
         if st.session_state.budget_data:
-            # Excel faylı yaradılması
-            output = io.BytesIO()
+            # Check if any region has non-empty items
+            has_data = any(not data['items'].empty for data in st.session_state.budget_data.values())
             
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                # Hər rayon üçün ayrı sheet
-                for region, data in st.session_state.budget_data.items():
-                    if not data['items'].empty:
-                        # Maddələr cədvəli
-                        items_df = data['items'].copy()
-                        
-                        # Xülasə məlumatları əlavə et
-                        summary_data = {
-                            'Maddə Nömrəsi': ['', 'XÜLASƏ', 'Ümumi Büdcə', 'İstifadə Edilən', 'Qalan Büdcə'],
-                            'Maddənin Adı': ['', '', '', '', ''],
-                            'Məbləğ': ['', '', data['total_budget'], items_df['Məbləğ'].sum(), 
-                                     data['total_budget'] - items_df['Məbləğ'].sum()],
-                            'Faiz': ['', '', '100%', f"{calculate_percentage(items_df['Məbləğ'].sum(), data['total_budget'])}%", 
-                                   f"{100 - calculate_percentage(items_df['Məbləğ'].sum(), data['total_budget'])}%"]
-                        }
-                        
-                        summary_df = pd.DataFrame(summary_data)
-                        final_df = pd.concat([items_df, summary_df], ignore_index=True)
-                        
-                        final_df.to_excel(writer, sheet_name=region[:30], index=False)
-            
-            output.seek(0)
-            
-            # Fayl adı
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"Maliyye_Melumatları_{timestamp}.xlsx"
-            
-            st.download_button(
-                label="📥 Excel Faylını Endir",
-                data=output.getvalue(),
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            if not has_data:
+                st.info("📝 İxrac etmək üçün məlumat mövcud deyil.")
+            else:
+                # Excel faylı yaradılması
+                output = io.BytesIO()
+                
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    # Hər rayon üçün ayrı sheet
+                    for region, data in st.session_state.budget_data.items():
+                        if not data['items'].empty:
+                            # Maddələr cədvəli
+                            items_df = data['items'].copy()
+                            
+                            # Xülasə məlumatları əlavə et
+                            summary_data = {
+                                'Maddə Nömrəsi': ['', 'XÜLASƏ', 'Ümumi Büdcə', 'İstifadə Edilən', 'Qalan Büdcə'],
+                                'Maddənin Adı': ['', '', '', '', ''],
+                                'Məbləğ': ['', '', data['total_budget'], items_df['Məbləğ'].sum(), 
+                                         data['total_budget'] - items_df['Məbləğ'].sum()],
+                                'Faiz': ['', '', '100%', f"{calculate_percentage(items_df['Məbləğ'].sum(), data['total_budget'])}%", 
+                                       f"{100 - calculate_percentage(items_df['Məbləğ'].sum(), data['total_budget'])}%"]
+                            }
+                            
+                            summary_df = pd.DataFrame(summary_data)
+                            final_df = pd.concat([items_df, summary_df], ignore_index=True)
+                            
+                            final_df.to_excel(writer, sheet_name=region[:30], index=False)
+                
+                output.seek(0)
+                
+                # Fayl adı
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"Maliyye_Melumatları_{timestamp}.xlsx"
+                
+                st.download_button(
+                    label="📥 Excel Faylını Endir",
+                    data=output.getvalue(),
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
         else:
             st.info("📝 İxrac etmək üçün məlumat mövcud deyil.")
+
+
     
     with col2:
         st.subheader("📤 Excel Faylını İdxal Et")
