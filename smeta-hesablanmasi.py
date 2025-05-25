@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Səhifə konfiqurasiyası
 st.set_page_config(
-    page_title="Maliyyə İdarəetmə Sistemi",
+    page_title="Maliyyə Sistemi",
     page_icon="💰",
     layout="wide"
 )
@@ -51,8 +51,7 @@ st.markdown("""
 # Başlıq
 st.markdown("""
 <div class="main-header">
-    <h1>💰 Maliyyə İdarəetmə Sistemi</h1>
-    <p>Azərbaycan Rayonları üzrə Büdcə Planlaması və İdarəetməsi</p>
+    <h1>💰 Maliyyə Sistemi</h1>
 </div>
 """, unsafe_allow_html=True)
 
@@ -454,12 +453,3 @@ with tab3:
             
             except Exception as e:
                 st.error(f"❌ Fayl oxunarkən xəta baş verdi: {str(e)}")
-
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #666; padding: 20px;">
-    <p>💰 Maliyyə İdarəetmə Sistemi - Azərbaycan Rayonları üzrə Büdcə Planlaması</p>
-    <small>Streamlit ilə hazırlanmışdır</small>
-</div>
-""", unsafe_allow_html=True)
