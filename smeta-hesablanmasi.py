@@ -1,425 +1,455 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+import io
 from datetime import datetime
-import json
 
-# Configure page
+# Səhifə konfiqurasiyası
 st.set_page_config(
-    page_title="Maliyyə Paneli", 
-    layout="wide",
-    page_icon="📊"
+    page_title="Maliyyə İdarəetmə Sistemi",
+    page_icon="💰",
+    layout="wide"
 )
 
-# All regions list
-regions = [
-    "Aparat", "Abşeron", "Ağcabədi", "Ağdam", "Ağdaş", "Ağdərə", "Ağstafa", "Ağsu", "Astara", "Bakı",
-    "Babək (Naxçıvan MR)", "Balakən", "Bərdə", "Beyləqan", "Biləsuvar", "Cəbrayıl", "Cəlilabad",
-    "Culfa (Naxçıvan MR)", "Daşkəsən", "Füzuli", "Gədəbəy", "Gəncə", "Goranboy", "Göyçay", "Göygöl",
-    "Hacıqabul", "Xaçmaz", "Xankəndi", "Xızı", "Xocalı", "Xocavənd", "İmişli", "İsmayıllı", "Kəlbəcər",
-    "Kəngərli (Naxçıvan MR)", "Kürdəmir", "Laçın", "Lənkəran", "Lerik", "Masallı", "Mingəçevir",
-    "Naftalan", "Neftçala", "Naxçıvan", "Oğuz", "Siyəzən", "Ordubad (Naxçıvan MR)", "Qəbələ", "Qax",
-    "Qazax", "Qobustan", "Quba", "Qubadlı", "Qusar", "Saatlı", "Sabirabad", "Sədərək (Naxçıvan MR)",
-    "Salyan", "Samux", "Şabran", "Şahbuz (Naxçıvan MR)", "Şamaxı", "Şəki", "Şəmkir",
-    "Şərur (Naxçıvan MR)", "Şirvan", "Şuşa", "Sumqayıt", "Tərtər", "Tovuz", "Ucar", "Yardımlı",
-    "Yevlax", "Zaqatala", "Zəngilan", "Zərdab", "Nabran", "Xudat"
-]
-
-# Initialize session state
-if 'budgets' not in st.session_state:
-    st.session_state.budgets = {}
-
-if 'current_items' not in st.session_state:
-    st.session_state.current_items = []
-
-# Custom CSS for better styling
+# CSS stil
 st.markdown("""
 <style>
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #1f77b4;
-        margin: 0.5rem 0;
+    .main-header {
+        background: linear-gradient(90deg, #4CAF50, #2196F3);
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        color: white;
+        margin-bottom: 30px;
     }
-    .success-card {
-        background-color: #d4edda;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #28a745;
-        margin: 0.5rem 0;
+    .stButton > button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 5px;
+        border: none;
+        padding: 0.5rem 1rem;
     }
-    .error-card {
-        background-color: #f8d7da;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #dc3545;
-        margin: 0.5rem 0;
+    .stButton > button:hover {
+        background-color: #45a049;
     }
-    .stTab > div:first-child {
-        background-color: #f8f9fa;
+    .error-message {
+        background-color: #ffebee;
+        color: #c62828;
+        padding: 10px;
+        border-radius: 5px;
+        border-left: 4px solid #f44336;
+    }
+    .success-message {
+        background-color: #e8f5e8;
+        color: #2e7d32;
+        padding: 10px;
+        border-radius: 5px;
+        border-left: 4px solid #4caf50;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Main title with enhanced styling
+# Başlıq
 st.markdown("""
-# 📊 Maliyyə İdarəetmə Paneli
-### Rayonlar üzrə büdcə planlaması və idarəetmə sistemi
----
-""")
-
-# Create tabs
-tab1, tab2, tab3, tab4 = st.tabs([
-    "📍 Rayon üzrə Smeta", 
-    "📂 Cedveller və Redaktə", 
-    "📈 Analitika və Hesabatlar",
-    "⚙️ Sistem Parametrləri"
-])
-
-# Tab 1: Regional Budget Planning
-with tab1:
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.markdown("### 🎯 Rayon Seçimi")
-        selected_region = st.selectbox("Rayon seçin:", regions, key="region_select")
-        
-        if selected_region:
-            st.markdown(f"### 💰 {selected_region} üçün Smeta")
-            total_budget = st.number_input(
-                "Ümumi məbləğ (AZN)", 
-                min_value=0.0, 
-                format="%.2f",
-                key="total_budget"
-            )
-            
-            if total_budget > 0:
-                st.markdown("### 📝 Maddələr")
-                num_items = st.number_input(
-                    "Madde sayı", 
-                    min_value=1, 
-                    max_value=20, 
-                    step=1,
-                    key="num_items"
-                )
-                
-                # Add/Remove items buttons
-                col_btn1, col_btn2 = st.columns(2)
-                with col_btn1:
-                    if st.button("➕ Maddə əlavə et", key="add_item"):
-                        st.session_state.current_items.append({
-                            "Madde nömrəsi": "",
-                            "Madde adı": "",
-                            "Məbləğ": 0.0,
-                            "%": 0.0
-                        })
-                
-                with col_btn2:
-                    if st.button("➖ Son maddəni sil", key="remove_item"):
-                        if st.session_state.current_items:
-                            st.session_state.current_items.pop()
-    
-    with col2:
-        if selected_region and total_budget > 0:
-            st.markdown("### 📋 Maddələrin Daxil Edilməsi")
-            
-            data = []
-            total_amount = 0
-            
-            # Ensure we have the right number of items
-            while len(st.session_state.current_items) < int(num_items):
-                st.session_state.current_items.append({
-                    "Madde nömrəsi": "",
-                    "Madde adı": "",
-                    "Məbləğ": 0.0,
-                    "%": 0.0
-                })
-            
-            while len(st.session_state.current_items) > int(num_items):
-                st.session_state.current_items.pop()
-            
-            # Create form for items
-            with st.form("budget_form"):
-                for i in range(int(num_items)):
-                    st.markdown(f"**Madde {i+1}**")
-                    col_a, col_b, col_c = st.columns([1, 2, 1])
-                    
-                    with col_a:
-                        madde_nomresi = st.text_input(
-                            f"Nömrə", 
-                            value=st.session_state.current_items[i]["Madde nömrəsi"] if i < len(st.session_state.current_items) else "",
-                            key=f"nomre_{i}"
-                        )
-                    
-                    with col_b:
-                        madde_adi = st.text_input(
-                            f"Adı", 
-                            value=st.session_state.current_items[i]["Madde adı"] if i < len(st.session_state.current_items) else "",
-                            key=f"adi_{i}"
-                        )
-                    
-                    with col_c:
-                        mebleg = st.number_input(
-                            f"Məbləğ (AZN)", 
-                            min_value=0.0, 
-                            format="%.2f", 
-                            value=st.session_state.current_items[i]["Məbləğ"] if i < len(st.session_state.current_items) else 0.0,
-                            key=f"mebleg_{i}"
-                        )
-                    
-                    faiz = round((mebleg / total_budget) * 100 if total_budget > 0 else 0, 2)
-                    total_amount += mebleg
-                    
-                    data.append({
-                        "Madde nömrəsi": madde_nomresi,
-                        "Madde adı": madde_adi,
-                        "Məbləğ": mebleg,
-                        "%": faiz
-                    })
-                
-                # Submit button
-                submitted = st.form_submit_button("💾 Smetanı Yadda Saxla", use_container_width=True)
-                
-                if submitted:
-                    # Validation
-                    if total_amount > total_budget:
-                        st.error(f"❌ Cəmi məbləğ ({total_amount:.2f} AZN) smetanı aşır!")
-                    else:
-                        # Save to session state
-                        st.session_state.budgets[selected_region] = {
-                            "total_budget": total_budget,
-                            "items": data,
-                            "total_amount": total_amount,
-                            "created_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }
-                        st.success(f"✅ {selected_region} üçün smeta uğurla yadda saxlanıldı!")
-            
-            # Display summary
-            if data:
-                st.markdown("### 📊 Xülasə")
-                df = pd.DataFrame(data)
-                
-                # Metrics
-                col_m1, col_m2, col_m3 = st.columns(3)
-                with col_m1:
-                    st.metric("Ümumi Smeta", f"{total_budget:.2f} AZN")
-                with col_m2:
-                    st.metric("İstifadə Olunan", f"{total_amount:.2f} AZN")
-                with col_m3:
-                    remaining = total_budget - total_amount
-                    st.metric("Qalan", f"{remaining:.2f} AZN", 
-                             delta=f"{(remaining/total_budget)*100:.1f}%" if total_budget > 0 else "0%")
-                
-                # Data table
-                st.dataframe(df, use_container_width=True)
-                
-                # Pie chart
-                if total_amount > 0:
-                    fig = px.pie(
-                        df, 
-                        values='Məbləğ', 
-                        names='Madde adı',
-                        title=f"{selected_region} - Büdcə Bölgüsü"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-
-# Tab 2: Tables and Edit
-with tab2:
-    st.markdown("### 📂 Rayonlara görə smeta cədvəlləri")
-    
-    if st.session_state.budgets:
-        # Summary table
-        summary_data = []
-        for region, budget_info in st.session_state.budgets.items():
-            summary_data.append({
-                "Rayon": region,
-                "Ümumi Məbləğ (AZN)": budget_info["total_budget"],
-                "İstifadə Olunan (AZN)": budget_info["total_amount"],
-                "Maddə Sayı": len(budget_info["items"]),
-                "Yaradılma Tarixi": budget_info["created_date"],
-                "Status": "✅ Tamamlanmış" if budget_info["total_amount"] == budget_info["total_budget"] else "🔶 Qismən"
-            })
-        
-        summary_df = pd.DataFrame(summary_data)
-        st.dataframe(summary_df, use_container_width=True)
-        
-        # Edit section
-        st.markdown("### ✏️ Redaktə")
-        edit_region = st.selectbox("Redaktə üçün rayon seçin:", list(st.session_state.budgets.keys()))
-        
-        if edit_region:
-            col_edit1, col_edit2 = st.columns([1, 1])
-            
-            with col_edit1:
-                if st.button(f"📝 {edit_region} redaktə et", use_container_width=True):
-                    st.session_state.edit_mode = edit_region
-                    st.rerun()
-            
-            with col_edit2:
-                if st.button(f"🗑️ {edit_region} sil", use_container_width=True):
-                    del st.session_state.budgets[edit_region]
-                    st.success(f"{edit_region} uğurla silindi!")
-                    st.rerun()
-            
-            # Show detailed view
-            budget_info = st.session_state.budgets[edit_region]
-            st.markdown(f"#### 📋 {edit_region} - Detallı Məlumat")
-            
-            items_df = pd.DataFrame(budget_info["items"])
-            st.dataframe(items_df, use_container_width=True)
-    else:
-        st.info("Hələ heç bir smeta daxil edilməyib. Zəhmət olmasa birinci tabdan başlayın.")
-
-# Tab 3: Analytics and Reports
-with tab3:
-    st.markdown("### 📈 Analitika və Hesabatlar")
-    
-    if st.session_state.budgets:
-        # Overall statistics
-        total_regions = len(st.session_state.budgets)
-        total_budget_all = sum([budget["total_budget"] for budget in st.session_state.budgets.values()])
-        total_used_all = sum([budget["total_amount"] for budget in st.session_state.budgets.values()])
-        
-        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-        
-        with col_stat1:
-            st.metric("Ümumi Rayonlar", total_regions)
-        with col_stat2:
-            st.metric("Ümumi Büdcə", f"{total_budget_all:.2f} AZN")
-        with col_stat3:
-            st.metric("İstifadə Olunan", f"{total_used_all:.2f} AZN")
-        with col_stat4:
-            usage_rate = (total_used_all / total_budget_all * 100) if total_budget_all > 0 else 0
-            st.metric("İstifadə Dərəcəsi", f"{usage_rate:.1f}%")
-        
-        # Charts
-        col_chart1, col_chart2 = st.columns(2)
-        
-        with col_chart1:
-            # Budget comparison by region
-            region_data = []
-            for region, budget in st.session_state.budgets.items():
-                region_data.append({
-                    "Rayon": region,
-                    "Büdcə": budget["total_budget"],
-                    "İstifadə": budget["total_amount"]
-                })
-            
-            region_df = pd.DataFrame(region_data)
-            fig_bar = px.bar(
-                region_df, 
-                x='Rayon', 
-                y=['Büdcə', 'İstifadə'],
-                title="Rayonlar üzrə Büdcə Müqayisəsi",
-                barmode='group'
-            )
-            fig_bar.update_xaxes(tickangle=45)
-            st.plotly_chart(fig_bar, use_container_width=True)
-        
-        with col_chart2:
-            # Usage rate by region
-            region_data_rate = []
-            for region, budget in st.session_state.budgets.items():
-                rate = (budget["total_amount"] / budget["total_budget"] * 100) if budget["total_budget"] > 0 else 0
-                region_data_rate.append({
-                    "Rayon": region,
-                    "İstifadə Dərəcəsi (%)": rate
-                })
-            
-            rate_df = pd.DataFrame(region_data_rate)
-            fig_rate = px.bar(
-                rate_df, 
-                x='Rayon', 
-                y='İstifadə Dərəcəsi (%)',
-                title="Rayonlar üzrə İstifadə Dərəcəsi",
-                color='İstifadə Dərəcəsi (%)',
-                color_continuous_scale='RdYlGn'
-            )
-            fig_rate.update_xaxes(tickangle=45)
-            st.plotly_chart(fig_rate, use_container_width=True)
-        
-        # Export functionality
-        st.markdown("### 📤 Export")
-        if st.button("📊 Excel faylına export et"):
-            # This would require openpyxl library
-            st.info("Excel export funksiyası əlavə kitabxana tələb edir.")
-        
-        if st.button("📋 JSON formatında yüklə"):
-            json_data = json.dumps(st.session_state.budgets, ensure_ascii=False, indent=2)
-            st.download_button(
-                label="JSON faylını yüklə",
-                data=json_data,
-                file_name=f"smeta_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json"
-            )
-    else:
-        st.info("Analitika üçün ən azı bir rayonun smeta məlumatı daxil edilməlidir.")
-
-# Tab 4: System Parameters
-with tab4:
-    st.markdown("### ⚙️ Sistem Parametrləri")
-    
-    col_sys1, col_sys2 = st.columns(2)
-    
-    with col_sys1:
-        st.markdown("#### 🔧 Ümumi Parametrlər")
-        
-        default_currency = st.selectbox("Valyuta", ["AZN", "USD", "EUR"], index=0)
-        decimal_places = st.number_input("Onluq yerlərin sayı", min_value=0, max_value=4, value=2)
-        
-        st.markdown("#### 📊 Hesabat Parametrləri")
-        auto_save = st.checkbox("Avtomatik yadda saxlama", value=True)
-        show_percentages = st.checkbox("Faizləri göstər", value=True)
-    
-    with col_sys2:
-        st.markdown("#### 🎨 Görünüş Parametrləri")
-        
-        theme_color = st.selectbox("Tema rəngi", ["Mavi", "Yaşıl", "Qırmızı", "Bənövşəyi"], index=0)
-        table_size = st.selectbox("Cədvəl ölçüsü", ["Kiçik", "Orta", "Böyük"], index=1)
-        
-        st.markdown("#### 🔄 Sistem Əməliyyatları")
-        
-        if st.button("🗑️ Bütün məlumatları sil", type="secondary"):
-            if st.checkbox("Təsdiq edirəm ki, bütün məlumatlar silinəcək"):
-                st.session_state.budgets = {}
-                st.session_state.current_items = []
-                st.success("Bütün məlumatlar silindi!")
-                st.rerun()
-        
-        if st.button("📥 Nümunə məlumatlar yüklə"):
-            # Load sample data
-            sample_data = {
-                "Bakı": {
-                    "total_budget": 500000.0,
-                    "items": [
-                        {"Madde nömrəsi": "01", "Madde adı": "İnfrastruktur", "Məbləğ": 200000.0, "%": 40.0},
-                        {"Madde nömrəsi": "02", "Madde adı": "Təhsil", "Məbləğ": 150000.0, "%": 30.0},
-                        {"Madde nömrəsi": "03", "Madde adı": "Səhiyyə", "Məbləğ": 150000.0, "%": 30.0}
-                    ],
-                    "total_amount": 500000.0,
-                    "created_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                },
-                "Gəncə": {
-                    "total_budget": 300000.0,
-                    "items": [
-                        {"Madde nömrəsi": "01", "Madde adı": "Yol təmiri", "Məbləğ": 120000.0, "%": 40.0},
-                        {"Madde nömrəsi": "02", "Madde adı": "Park yenilənməsi", "Məbləğ": 90000.0, "%": 30.0},
-                        {"Madde nömrəsi": "03", "Madde adı": "İdari binalar", "Məbləğ": 90000.0, "%": 30.0}
-                    ],
-                    "total_amount": 300000.0,
-                    "created_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-            }
-            st.session_state.budgets.update(sample_data)
-            st.success("Nümunə məlumatlar yükləndi!")
-            st.rerun()
-
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666; font-size: 0.8em;'>
-    📊 Maliyyə İdarəetmə Paneli v2.0 | Azərbaycan Rayonları üçün Büdcə Planlaması
+<div class="main-header">
+    <h1>💰 Maliyyə</h1>
 </div>
 """, unsafe_allow_html=True)
+
+# Rayonların siyahısı
+REGIONS = [
+    "Aparat", "Abşeron", "Ağcabədi", "Ağdam", "Ağdaş", "Ağdərə", "Ağstafa", "Ağsu", 
+    "Astara", "Bakı", "Babək (Naxçıvan MR)", "Balakən", "Bərdə", "Beyləqan", "Biləsuvar", 
+    "Cəbrayıl", "Cəlilabad", "Culfa (Naxçıvan MR)", "Daşkəsən", "Füzuli", "Gədəbəy", 
+    "Gəncə", "Goranboy", "Göyçay", "Göygöl", "Hacıqabul", "Xaçmaz", "Xankəndi", "Xızı", 
+    "Xocalı", "Xocavənd", "İmişli", "İsmayıllı", "Kəlbəcər", "Kəngərli (Naxçıvan MR)", 
+    "Kürdəmir", "Laçın", "Lənkəran", "Lerik", "Masallı", "Mingəçevir", "Naftalan", 
+    "Neftçala", "Naxçıvan", "Oğuz", "Siyəzən", "Ordubad (Naxçıvan MR)", "Qəbələ", 
+    "Qax", "Qazax", "Qobustan", "Quba", "Qubadlı", "Qusar", "Saatlı", "Sabirabad", 
+    "Sədərək (Naxçıvan MR)", "Salyan", "Samux", "Şabran", "Şahbuz (Naxçıvan MR)", 
+    "Şamaxı", "Şəki", "Şəmkir", "Şərur (Naxçıvan MR)", "Şirvan", "Şuşa", "Sumqayıt", 
+    "Tərtər", "Tovuz", "Ucar", "Yardımlı", "Yevlax", "Zaqatala", "Zəngilan", "Zərdab", 
+    "Nabran", "Xudat"
+]
+
+# Session state başlatma
+if 'budget_data' not in st.session_state:
+    st.session_state.budget_data = {}
+
+def calculate_percentage(amount, total):
+    """Faiz hesablama funksiyası"""
+    if total == 0:
+        return 0
+    return round((amount / total) * 100, 2)
+
+def validate_budget(items_df, total_budget):
+    """Büdcə doğrulama funksiyası"""
+    if items_df.empty:
+        return True, ""
+    
+    total_items = items_df['Məbləğ'].sum()
+    if total_items > total_budget:
+        return False, f"Xəta: Maddələrin cəmi ({total_items:,.2f} AZN) ümumi büdcədən ({total_budget:,.2f} AZN) çoxdur!"
+    return True, ""
+
+# Əsas tab səhifələri
+tab1, tab2, tab3 = st.tabs(["📊 Büdcə Planlaması", "📋 Məlumatları İdarə Et", "📁 Excel İdarəetməsi"])
+
+with tab1:
+    st.header("🏛️ Rayon və Büdcə Seçimi")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        selected_region = st.selectbox(
+            "Rayon seçin:",
+            options=["Seçin..."] + REGIONS,
+            key="region_select"
+        )
+    
+    with col2:
+        if selected_region != "Seçin...":
+            total_budget = st.number_input(
+                "Ümumi Məbləğ (Smeta) - AZN:",
+                min_value=0.0,
+                value=0.0,
+                step=100.0,
+                format="%.2f",
+                key="budget_input"
+            )
+    
+    if selected_region != "Seçin..." and total_budget > 0:
+        st.markdown("---")
+        st.header("📝 Maddələr Siyahısı")
+        
+        # Seçilmiş rayon üçün məlumatları başlat
+        if selected_region not in st.session_state.budget_data:
+            st.session_state.budget_data[selected_region] = {
+                'total_budget': total_budget,
+                'items': pd.DataFrame(columns=['Maddə Nömrəsi', 'Maddənin Adı', 'Məbləğ', 'Faiz'])
+            }
+        
+        # Ümumi büdcəni yenilə
+        st.session_state.budget_data[selected_region]['total_budget'] = total_budget
+        
+        # Yeni maddə əlavə etmə formu
+        with st.expander("➕ Yeni Maddə Əlavə Et", expanded=True):
+            col1, col2, col3 = st.columns([1, 2, 1])
+            
+            with col1:
+                item_number = st.text_input("Maddə Nömrəsi:", key="item_number")
+            
+            with col2:
+                item_name = st.text_input("Maddənin Adı:", key="item_name")
+            
+            with col3:
+                item_amount = st.number_input(
+                    "Məbləğ (AZN):",
+                    min_value=0.0,
+                    value=0.0,
+                    step=10.0,
+                    format="%.2f",
+                    key="item_amount"
+                )
+            
+            if st.button("➕ Maddə Əlavə Et", key="add_item"):
+                if item_number and item_name and item_amount > 0:
+                    # Yeni maddə əlavə et
+                    current_items = st.session_state.budget_data[selected_region]['items'].copy()
+                    
+                    # Faizi hesabla
+                    percentage = calculate_percentage(item_amount, total_budget)
+                    
+                    new_item = pd.DataFrame({
+                        'Maddə Nömrəsi': [item_number],
+                        'Maddənin Adı': [item_name],
+                        'Məbləğ': [item_amount],
+                        'Faiz': [f"{percentage}%"]
+                    })
+                    
+                    updated_items = pd.concat([current_items, new_item], ignore_index=True)
+                    
+                    # Doğrulama
+                    is_valid, error_msg = validate_budget(updated_items, total_budget)
+                    
+                    if is_valid:
+                        st.session_state.budget_data[selected_region]['items'] = updated_items
+                        st.success("✅ Maddə uğurla əlavə edildi!")
+                        st.rerun()
+                    else:
+                        st.markdown(f'<div class="error-message">{error_msg}</div>', unsafe_allow_html=True)
+                else:
+                    st.error("❌ Bütün sahələri doldurun!")
+        
+        # Cədvəli göstər
+        current_items = st.session_state.budget_data[selected_region]['items']
+        
+        if not current_items.empty:
+            st.subheader("📊 Mövcud Maddələr")
+            
+            # Faizləri yenidən hesabla
+            for idx, row in current_items.iterrows():
+                amount = row['Məbləğ']
+                percentage = calculate_percentage(amount, total_budget)
+                current_items.at[idx, 'Faiz'] = f"{percentage}%"
+            
+            # Cədvəli göstər
+            st.dataframe(
+                current_items,
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            # Xülasə məlumatları
+            col1, col2, col3 = st.columns(3)
+            
+            total_items_amount = current_items['Məbləğ'].sum()
+            remaining_budget = total_budget - total_items_amount
+            used_percentage = calculate_percentage(total_items_amount, total_budget)
+            
+            with col1:
+                st.metric("💰 Ümumi Büdcə", f"{total_budget:,.2f} AZN")
+            
+            with col2:
+                st.metric("💸 İstifadə Edilən", f"{total_items_amount:,.2f} AZN", f"{used_percentage}%")
+            
+            with col3:
+                color = "normal" if remaining_budget >= 0 else "inverse"
+                st.metric("💳 Qalan Büdcə", f"{remaining_budget:,.2f} AZN", delta_color=color)
+            
+            # Progress bar
+            progress = min(used_percentage / 100, 1.0)
+            st.progress(progress)
+            
+            if remaining_budget < 0:
+                st.markdown('<div class="error-message">⚠️ Xəbərdarlıq: Büdcə aşılıb!</div>', unsafe_allow_html=True)
+
+with tab2:
+    st.header("📋 Məlumatları İdarə Et və Redaktə Et")
+    
+    if st.session_state.budget_data:
+        # Rayon seçimi
+        region_to_edit = st.selectbox(
+            "Redaktə etmək üçün rayon seçin:",
+            options=list(st.session_state.budget_data.keys()),
+            key="edit_region_select"
+        )
+        
+        if region_to_edit:
+            region_data = st.session_state.budget_data[region_to_edit]
+            
+            st.subheader(f"📊 {region_to_edit} - Məlumatları")
+            
+            # Ümumi büdcəni redaktə et
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                new_total_budget = st.number_input(
+                    "Ümumi Büdcəni Yenilə (AZN):",
+                    value=region_data['total_budget'],
+                    min_value=0.0,
+                    step=100.0,
+                    format="%.2f",
+                    key=f"edit_budget_{region_to_edit}"
+                )
+            
+            with col2:
+                if st.button("💾 Büdcəni Yenilə", key=f"update_budget_{region_to_edit}"):
+                    st.session_state.budget_data[region_to_edit]['total_budget'] = new_total_budget
+                    st.success("✅ Büdcə yeniləndi!")
+                    st.rerun()
+            
+            # Maddələri göstər və redaktə et
+            current_items = region_data['items'].copy()
+            
+            if not current_items.empty:
+                st.subheader("✏️ Maddələri Redaktə Et")
+                
+                # Hər maddə üçün redaktə formu
+                for idx, row in current_items.iterrows():
+                    with st.expander(f"Maddə {idx + 1}: {row['Maddənin Adı']}", expanded=False):
+                        col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
+                        
+                        with col1:
+                            new_number = st.text_input(
+                                "Nömrə:",
+                                value=row['Maddə Nömrəsi'],
+                                key=f"edit_number_{region_to_edit}_{idx}"
+                            )
+                        
+                        with col2:
+                            new_name = st.text_input(
+                                "Ad:",
+                                value=row['Maddənin Adı'],
+                                key=f"edit_name_{region_to_edit}_{idx}"
+                            )
+                        
+                        with col3:
+                            new_amount = st.number_input(
+                                "Məbləğ:",
+                                value=float(row['Məbləğ']),
+                                min_value=0.0,
+                                step=10.0,
+                                format="%.2f",
+                                key=f"edit_amount_{region_to_edit}_{idx}"
+                            )
+                        
+                        with col4:
+                            col4a, col4b = st.columns(2)
+                            with col4a:
+                                if st.button("💾", key=f"update_item_{region_to_edit}_{idx}", help="Yenilə"):
+                                    # Maddəni yenilə
+                                    current_items.at[idx, 'Maddə Nömrəsi'] = new_number
+                                    current_items.at[idx, 'Maddənin Adı'] = new_name
+                                    current_items.at[idx, 'Məbləğ'] = new_amount
+                                    
+                                    # Doğrulama
+                                    is_valid, error_msg = validate_budget(current_items, new_total_budget)
+                                    
+                                    if is_valid:
+                                        st.session_state.budget_data[region_to_edit]['items'] = current_items
+                                        st.success("✅ Maddə yeniləndi!")
+                                        st.rerun()
+                                    else:
+                                        st.error(error_msg)
+                            
+                            with col4b:
+                                if st.button("🗑️", key=f"delete_item_{region_to_edit}_{idx}", help="Sil"):
+                                    # Maddəni sil
+                                    updated_items = current_items.drop(idx).reset_index(drop=True)
+                                    st.session_state.budget_data[region_to_edit]['items'] = updated_items
+                                    st.success("✅ Maddə silindi!")
+                                    st.rerun()
+                
+                # Yenilənmiş cədvəli göstər
+                updated_items = st.session_state.budget_data[region_to_edit]['items']
+                if not updated_items.empty:
+                    # Faizləri yenidən hesabla
+                    total_budget_current = st.session_state.budget_data[region_to_edit]['total_budget']
+                    for idx, row in updated_items.iterrows():
+                        amount = row['Məbləğ']
+                        percentage = calculate_percentage(amount, total_budget_current)
+                        updated_items.at[idx, 'Faiz'] = f"{percentage}%"
+                    
+                    st.subheader("📊 Yenilənmiş Cədvəl")
+                    st.dataframe(updated_items, use_container_width=True, hide_index=True)
+            
+            # Rayonu tamamilə sil
+            st.markdown("---")
+            if st.button(f"🗑️ {region_to_edit} rayonunu tamamilə sil", key=f"delete_region_{region_to_edit}"):
+                del st.session_state.budget_data[region_to_edit]
+                st.success(f"✅ {region_to_edit} rayonu silindi!")
+                st.rerun()
+    
+    else:
+        st.info("📝 Hələ heç bir məlumat mövcud deyil. Büdcə Planlaması tabından başlayın.")
+
+with tab3:
+    st.header("📁 Excel Faylı İdarəetməsi")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📤 Excel Faylını İxrac Et")
+        
+        if st.session_state.budget_data:
+            # Excel faylı yaradılması
+            output = io.BytesIO()
+            
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                # Hər rayon üçün ayrı sheet
+                for region, data in st.session_state.budget_data.items():
+                    if not data['items'].empty:
+                        # Maddələr cədvəli
+                        items_df = data['items'].copy()
+                        
+                        # Xülasə məlumatları əlavə et
+                        summary_data = {
+                            'Maddə Nömrəsi': ['', 'XÜLASƏ', 'Ümumi Büdcə', 'İstifadə Edilən', 'Qalan Büdcə'],
+                            'Maddənin Adı': ['', '', '', '', ''],
+                            'Məbləğ': ['', '', data['total_budget'], items_df['Məbləğ'].sum(), 
+                                     data['total_budget'] - items_df['Məbləğ'].sum()],
+                            'Faiz': ['', '', '100%', f"{calculate_percentage(items_df['Məbləğ'].sum(), data['total_budget'])}%", 
+                                   f"{100 - calculate_percentage(items_df['Məbləğ'].sum(), data['total_budget'])}%"]
+                        }
+                        
+                        summary_df = pd.DataFrame(summary_data)
+                        final_df = pd.concat([items_df, summary_df], ignore_index=True)
+                        
+                        final_df.to_excel(writer, sheet_name=region[:30], index=False)
+            
+            output.seek(0)
+            
+            # Fayl adı
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"Maliyye_Melumatları_{timestamp}.xlsx"
+            
+            st.download_button(
+                label="📥 Excel Faylını Endir",
+                data=output.getvalue(),
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        else:
+            st.info("📝 İxrac etmək üçün məlumat mövcud deyil.")
+    
+    with col2:
+        st.subheader("📤 Excel Faylını İdxal Et")
+        
+        uploaded_file = st.file_uploader(
+            "Excel faylını seçin:",
+            type=['xlsx', 'xls'],
+            key="excel_upload"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Excel faylını oxu
+                excel_file = pd.ExcelFile(uploaded_file)
+                
+                st.success(f"✅ Fayl yükləndi! Sheet-lər: {', '.join(excel_file.sheet_names)}")
+                
+                # Hər sheet üçün məlumatları yüklə
+                if st.button("📥 Məlumatları İdxal Et", key="import_data"):
+                    imported_count = 0
+                    
+                    for sheet_name in excel_file.sheet_names:
+                        try:
+                            df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+                            
+                            # Sütun adlarını yoxla
+                            required_columns = ['Maddə Nömrəsi', 'Maddənin Adı', 'Məbləğ']
+                            if all(col in df.columns for col in required_columns):
+                                # XÜLASƏ sətrlərini çıxar
+                                df_filtered = df[~df['Maddənin Adı'].isin(['', 'XÜLASƏ']) & 
+                                               df['Maddə Nömrəsi'].notna() & 
+                                               (df['Maddə Nömrəsi'] != '')]
+                                
+                                if not df_filtered.empty:
+                                    # Rayon məlumatlarını session state-ə əlavə et
+                                    region_name = sheet_name
+                                    
+                                    # Faizləri yenidən hesabla
+                                    total_budget = df_filtered['Məbləğ'].sum() * 1.1  # 10% ehtiyat
+                                    
+                                    for idx, row in df_filtered.iterrows():
+                                        amount = row['Məbləğ']
+                                        percentage = calculate_percentage(amount, total_budget)
+                                        df_filtered.at[idx, 'Faiz'] = f"{percentage}%"
+                                    
+                                    st.session_state.budget_data[region_name] = {
+                                        'total_budget': total_budget,
+                                        'items': df_filtered[required_columns + ['Faiz']].reset_index(drop=True)
+                                    }
+                                    
+                                    imported_count += 1
+                        
+                        except Exception as e:
+                            st.warning(f"⚠️ {sheet_name} sheet-i yüklənə bilmədi: {str(e)}")
+                    
+                    if imported_count > 0:
+                        st.success(f"✅ {imported_count} rayon məlumatı uğurla idxal edildi!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Heç bir uyğun məlumat tapılmadı!")
+            
+            except Exception as e:
+                st.error(f"❌ Fayl oxunarkən xəta baş verdi: {str(e)}")
