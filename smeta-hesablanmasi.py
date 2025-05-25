@@ -51,10 +51,9 @@ st.markdown("""
 # Başlıq
 st.markdown("""
 <div class="main-header">
-    <h1>💰 Maliyyə Sistemi</h1>
+    <h1>💰 Maliyyə İdarəetmə Sistemi</h1>
 </div>
 """, unsafe_allow_html=True)
-
 
 # Rayonların siyahısı
 REGIONS = [
@@ -454,3 +453,12 @@ with tab3:
             
             except Exception as e:
                 st.error(f"❌ Fayl oxunarkən xəta baş verdi: {str(e)}")
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center; color: #666; padding: 20px;">
+    <p>💰 Maliyyə İdarəetmə Sistemi - Azərbaycan Rayonları üzrə Büdcə Planlaması</p>
+    <small>Streamlit ilə hazırlanmışdır</small>
+</div>
+""", unsafe_allow_html=True)
