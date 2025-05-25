@@ -52,6 +52,7 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
     <h1>💰 Maliyyə İdarəetmə Sistemi</h1>
+    <p>Azərbaycan Rayonları üzrə Büdcə Planlaması və İdarəetməsi</p>
 </div>
 """, unsafe_allow_html=True)
 
